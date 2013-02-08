@@ -9,18 +9,21 @@ from genshi.builder import tag
 class Scheduled(Component):
 	implements(INavigationContributor, IRequestHandler, ITemplateProvider)
 
+	# INavigationContributor: Add the "scheduled" button to the navigation bar
 	def get_active_navigation_item(self, req):
 		return 'scheduled'
 
 	def get_navigation_items(self, req):
 		yield ('mainnav', 'scheduled', tag.a(_('Scheduled tickets'), href=req.href.scheduled()))
 
+	# IRequestHandler: Show a page upon clicking the navigation "scheduled" button
 	def match_request(self, req):
 		return re.match(r'/scheduled(?:/.+)?$', req.path_info)
 
 	def process_request(self, req):
 		return 'scheduled.html', [], None
 
+	# ITemplateProvider: Provide templates for the pages used in process_request
 	def get_templates_dirs(self):
 		from pkg_resources import resource_filename
 		return [resource_filename(__name__, 'templates')]
