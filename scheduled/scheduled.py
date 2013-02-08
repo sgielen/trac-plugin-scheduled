@@ -3,12 +3,21 @@ import re
 from trac.core import *
 from trac.web.chrome import INavigationContributor, ITemplateProvider
 from trac.web.main import IRequestHandler
+from trac.env import IEnvironmentSetupParticipant
 from trac.util.translation import _
 from genshi.builder import tag
 from pkg_resources import resource_filename
 
 class Scheduled(Component):
-	implements(INavigationContributor, IRequestHandler, ITemplateProvider)
+	database_version = 1
+
+	implements(INavigationContributor, IRequestHandler, ITemplateProvider, IEnvironmentSetupParticipant)
+
+	@property
+	def current_database_version(self):
+		for row in self.env.db_query("SELECT value FROM system WHERE name='scheduled_db_version'"):
+			return int(row[0])
+		return None
 
 	# INavigationContributor: Add the "scheduled" button to the navigation bar
 	def get_active_navigation_item(self, req):
@@ -22,10 +31,70 @@ class Scheduled(Component):
 		return re.match(r'/scheduled(?:/.+)?$', req.path_info)
 
 	def process_request(self, req):
-		return 'scheduled.html', [], None
+		return 'scheduled.html', {'ver': self.current_database_version, 'latest': self.database_version}, None
 
 	# ITemplateProvider: Provide templates for the pages used in process_request
 	def get_templates_dirs(self):
 		return [resource_filename(__name__, 'templates')]
 	def get_htdocs_dirs(self):
 		return []
+
+	# IEnvironmentSetupParticipant: Create the expected table of scheduled tickets for each version
+	def environment_created(self):
+		pass
+
+	def environment_needs_upgrade(self, db):
+		ver=self.current_database_version
+		if ver == self.database_version:
+			return False
+		elif ver > self.database_version:
+			raise TracError("""
+				Scheduled tickets database version is higher than
+				installed plugin supports (database has version %d,
+				plugin supports version %d)
+				""" % (ver, database_verson))
+		else:
+			return True
+
+	def upgrade_environment(self, db):
+		ver=self.current_database_version
+		last_supported_database_version=0
+		
+		# Sanity checking
+		assert(ver <= self.database_version)
+		if ver != 0 & ver < last_supported_database_version:
+			# TODO: have an option for dropping the complete database
+			raise TracError("""
+				Scheduled tickets database version is unupgradable (last supported upgrade
+				version is %d, current version is %d, last version is %d). Remove the
+				'scheduled' table and set scheduled_db_version to 0 in table 'system' to
+				work around this missing feature.
+				""" % (last_supported_database_version, ver, self.database_version))
+		
+		self.log.info("Upgrading scheduled ticket table version %d to version %d" % (ver, self.database_version))
+		with self.env.db_transaction as db:
+			# First, save our old database
+			if ver is not None:
+				db("CREATE TEMPORARY TABLE scheduled_old AS SELECT * FROM scheduled;")
+				db("DROP TABLE scheduled")
+			
+			# Create our new database
+			db("""CREATE TABLE scheduled (
+				id integer PRIMARY KEY,
+				summary text,
+				description text,
+				recurring_days integer,
+				scheduled_start integer
+			)""")
+
+			# Restore our old database
+			if ver is not None:
+				db("""INSERT INTO scheduled(id, summary, description, recurring_days, scheduled_start)
+					SELECT id,summary,description,recurring_days,scheduled_start FROM scheduled_old""")
+			
+			# Update our version number
+			if ver is not None:
+				db("UPDATE system SET value=%s WHERE name='scheduled_db_version'", str(self.database_version))
+			else:
+				db("INSERT INTO system (name, value) VALUES ('scheduled_db_version', %s)", str(self.database_version))
+
