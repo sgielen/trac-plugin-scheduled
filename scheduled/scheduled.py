@@ -44,24 +44,22 @@ class Scheduled(Component):
 		pass
 
 	def environment_needs_upgrade(self, db):
-		ver=self.current_database_version
-		if ver == self.database_version:
-			return False
-		elif ver > self.database_version:
-			raise TracError("""
-				Scheduled tickets database version is higher than
-				installed plugin supports (database has version %d,
-				plugin supports version %d)
-				""" % (ver, database_verson))
-		else:
-			return True
+		# If the database version is too high, say True here;
+		# we can't throw exceptions here but we can in upgrade_environment
+		return self.current_database_version != self.database_version
 
 	def upgrade_environment(self, db):
 		ver=self.current_database_version
 		last_supported_database_version=0
 		
+		if ver > self.database_version:
+			raise TracError("""
+				Scheduled tickets database version is higher than
+				installed plugin supports (database has version %d,
+				plugin supports version %d)
+				""" % (ver, self.database_version))
+
 		# Sanity checking
-		assert(ver <= self.database_version)
 		if ver != 0 & ver < last_supported_database_version:
 			# TODO: have an option for dropping the complete database
 			raise TracError("""
