@@ -41,7 +41,7 @@ class Scheduled(Component):
 
 	# IEnvironmentSetupParticipant: Create the expected table of scheduled tickets for each version
 	def environment_created(self):
-		pass
+		self.upgrade_environment(None)
 
 	def environment_needs_upgrade(self, db):
 		# If the database version is too high, say True here;
