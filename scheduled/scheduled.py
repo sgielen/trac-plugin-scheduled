@@ -1,7 +1,7 @@
 import re
 
 from trac.core import *
-from trac.web.chrome import INavigationContributor, ITemplateProvider
+from trac.web.chrome import INavigationContributor, ITemplateProvider, add_stylesheet
 from trac.web.main import IRequestHandler
 from trac.env import IEnvironmentSetupParticipant
 from trac.util.translation import _
@@ -31,13 +31,33 @@ class Scheduled(Component):
 		return re.match(r'/scheduled(?:/.+)?$', req.path_info)
 
 	def process_request(self, req):
-		return 'scheduled.html', {'ver': self.current_database_version, 'latest': self.database_version}, None
+		add_stylesheet(req, 'scheduled/css/scheduled.css')
+		tickets = []
+		tickets.append({
+			'summary': 'Test ticket #1',
+			'due': 'Friday 15th',
+			'recurring': 'Every 2 weeks',
+			'__idx__': 0,
+		})
+		tickets.append({
+			'summary': 'Test ticket #2',
+			'due': 'Friday 15th',
+			'recurring': None,
+			'__idx__': 1,
+		})
+		tickets.append({
+			'summary': 'Test ticket #3',
+			'due': 'Saturday 16th',
+			'recurring': 'Every day',
+			'__idx__': 2,
+		})
+		return 'scheduled.html', {'scheduled_tickets': tickets}, None
 
 	# ITemplateProvider: Provide templates for the pages used in process_request
 	def get_templates_dirs(self):
 		return [resource_filename(__name__, 'templates')]
 	def get_htdocs_dirs(self):
-		return []
+		return [('scheduled', resource_filename(__name__, 'htdocs'))]
 
 	# IEnvironmentSetupParticipant: Create the expected table of scheduled tickets for each version
 	def environment_created(self):

@@ -7,14 +7,44 @@
       xmlns:xi="http://www.w3.org/2001/XInclude">
   <xi:include href="layout.html" />
   <head>
-    <title>Scheduled tickets</title>
+    <title>Scheduled and recurring tickets</title>
   </head>
 
   <body>
     <div id="content" class="scheduled">
-      <h1>Scheduled tickets</h1>
-      <p>Database version should be: $latest</p>
-      <p>Database version is: $ver</p>
+      <h1>Scheduled and recurring tickets</h1>
+
+      <div py:if="message" class="system-message">$message</div>
+
+      <div class="buttons">
+        <form action="" method="get">
+          <div>
+            <input type="hidden" name="action" value="create" />
+            <input type="submit" value="${_('Add scheduled or recurring ticket')}" />
+          </div>
+        </form>
+      </div>
+
+      <div py:if="len(scheduled_tickets) == 0" id="scheduled_notfound">No scheduled tickets found.</div>
+
+      <div py:if="len(scheduled_tickets) > 0" id="scheduled_tickets">
+        <table class="listing tickets">
+          <thead>
+            <tr><th>Summary</th><th>Due</th><th>Recurring</th></tr>
+          </thead>
+
+          <tbody>
+            <py:for each="row in scheduled_tickets">
+              <tr class="${row.__idx__ % 2 and 'odd' or 'even'}">
+                <td class="summary">${row.summary}</td>
+                <td class="due">${row.due}</td>
+                <td class="recurring">${row.recurring or "No"}</td>
+              </tr>
+            </py:for>
+          </tbody>
+        </table>
+      </div>
+
     </div>
   </body>
 </html>

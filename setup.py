@@ -12,5 +12,5 @@ setup(
 			'%s = scheduled' % PACKAGE,
 		],
 	},
-	package_data={'helloworld': ['templates/*.html']},
+	package_data={'scheduled': ['templates/*.html', 'htdocs/css/*.css']},
 )
