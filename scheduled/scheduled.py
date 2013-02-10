@@ -30,11 +30,11 @@ class Scheduled(Component):
 
 	# IRequestHandler: Show a page upon clicking the navigation "scheduled" button
 	def match_request(self, req):
-		return re.match(r'^/scheduled(?:/.+)?$', req.path_info)
+		return re.match(r'/scheduled(?:/.+)?$', req.path_info)
 
 	def process_request(self, req):
 		add_stylesheet(req, 'scheduled/css/scheduled.css')
-		if re.match(r'^/scheduled/?$', req.path_info):
+		if re.match(r'/scheduled/?$', req.path_info):
 			tickets = []
 			index = 0
 			for row in self.env.db_query("SELECT summary, description, recurring_days, scheduled_start FROM scheduled"):
@@ -47,7 +47,7 @@ class Scheduled(Component):
 				})
 				index += 1
 			return 'scheduled.html', {'scheduled_tickets': tickets}, None
-		elif re.match(r'^/scheduled/create/?$', req.path_info):
+		elif re.match(r'/scheduled/create/?$', req.path_info):
 			message = None
 			ticket = {}
 			
