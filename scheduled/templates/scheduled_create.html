@@ -1,0 +1,68 @@
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:i18n="http://genshi.edgewall.org/i18n"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+  <xi:include href="layout.html" />
+  <head>
+    <title>Create new scheduled ticket</title>
+    <script type="text/javascript">
+        $("#field-summary").focus();
+    </script>
+  </head>
+
+  <body>
+    <div id="content" class="scheduled_create">
+      <h1>Create new scheduled ticket</h1>
+
+      <div py:if="message" class="system-message">$message</div>
+
+      <form method="post" id="propertyform" action="">
+        <div id="modify">
+          <fieldset id="properties">
+            <legend>Properties</legend>
+            <table>
+              <tbody>
+                <tr>
+                  <th><label for="field-summary">Summary</label></th>
+                  <td class="fullrow" colspan="3">
+                    <input type="text" id="field-summary" name="field_summary" size="70"/>
+                  </td>
+                </tr>
+
+                <tr>
+                  <th><label for="field-description">Description:</label></th>
+                  <td class="fullrow" colspan="3">
+                    <fieldset>
+                      <label for="comment" i18n:msg="">You may use
+                        <a tabindex="42" href="${href.wiki('WikiFormatting')}">WikiFormatting</a>
+                        here.
+                      </label>
+                      <textarea id="field-description" name="field_description"
+                                class="wikitext trac-resizable" rows="10"
+                                cols="68"></textarea>
+                    </fieldset>
+                  </td>
+                </tr>
+
+                <tr>
+                  <th class="col1"><label for="field-nextdue">Next due (days):</label></th>
+                  <td class="col1"><input type="text" id="field-nextdue" name="field_nextdue"/></td>
+                  <th class="col2"><label for="field-repeatdays">Repeat every (days, 0 for once):</label></th>
+                  <td class="col2"><input type="text" id="field-repeatdays" name="field_repeatdays"/></td>
+                </tr>
+              </tbody>
+            </table>
+          </fieldset>
+        </div>
+
+        <div class="buttons">
+          <input type="submit" name="submit" value="Create scheduled ticket" />
+        </div>
+      </form>
+
+    </div>
+  </body>
+</html>

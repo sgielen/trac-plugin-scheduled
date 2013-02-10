@@ -1,8 +1,9 @@
 import re
 
 from trac.core import *
-from trac.web.chrome import INavigationContributor, ITemplateProvider, add_stylesheet
+from trac.web.chrome import INavigationContributor, ITemplateProvider, add_stylesheet, Chrome
 from trac.web.main import IRequestHandler
+from trac.web.api import *
 from trac.env import IEnvironmentSetupParticipant
 from trac.util.translation import _
 from genshi.builder import tag
@@ -28,7 +29,7 @@ class Scheduled(Component):
 
 	# IRequestHandler: Show a page upon clicking the navigation "scheduled" button
 	def match_request(self, req):
-		return re.match(r'/scheduled(?:/.+)?$', req.path_info)
+		return re.match(r'^/scheduled(?:/.+)?$', req.path_info)
 
 	def process_request(self, req):
 		add_stylesheet(req, 'scheduled/css/scheduled.css')
@@ -51,8 +52,19 @@ class Scheduled(Component):
 			'recurring': 'Every day',
 			'__idx__': 2,
 		})
-		return 'scheduled.html', {'scheduled_tickets': tickets}, None
-
+		if re.match(r'^/scheduled/?$', req.path_info):
+			return 'scheduled.html', {'scheduled_tickets': tickets}, None
+		elif re.match(r'^/scheduled/create/?$', req.path_info):
+        		if req.method == 'POST':
+				raise HTTPNotFound('TODO')
+			else:
+				add_stylesheet(req, 'common/css/ticket.css')
+				Chrome(self.env).add_wiki_toolbars(req)
+				return 'scheduled_create.html', {}, None
+		else:
+			raise HTTPNotFound('Scheduler plugin couldn\'t handle request to %s',
+			    req.path_info)
+	
 	# ITemplateProvider: Provide templates for the pages used in process_request
 	def get_templates_dirs(self):
 		return [resource_filename(__name__, 'templates')]

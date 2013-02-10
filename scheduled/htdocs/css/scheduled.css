@@ -1,3 +1,8 @@
 #scheduled_notfound, #scheduled_tickets {
 	margin: 10px 0;
 }
+
+#content.scheduled_create {
+	width: 58em;
+	margin: 10px auto;
+}

@@ -17,9 +17,8 @@
       <div py:if="message" class="system-message">$message</div>
 
       <div class="buttons">
-        <form action="" method="get">
+        <form action="scheduled/create" method="get">
           <div>
-            <input type="hidden" name="action" value="create" />
             <input type="submit" value="${_('Add scheduled or recurring ticket')}" />
           </div>
         </form>
