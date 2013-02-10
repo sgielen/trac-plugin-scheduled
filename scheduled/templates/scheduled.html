@@ -36,8 +36,8 @@
             <py:for each="row in scheduled_tickets">
               <tr class="${row.__idx__ % 2 and 'odd' or 'even'}">
                 <td class="summary">${row.summary}</td>
-                <td class="due">${row.due}</td>
-                <td class="recurring">${row.recurring or "No"}</td>
+                <td class="due">${format_date(from_utimestamp(long(row.scheduled_start)))}</td>
+                <td class="recurring">${row.recurring_days and ("Every %d days" % row.recurring_days) or "No"}</td>
               </tr>
             </py:for>
           </tbody>

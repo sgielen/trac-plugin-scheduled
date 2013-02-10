@@ -34,26 +34,18 @@ class Scheduled(Component):
 
 	def process_request(self, req):
 		add_stylesheet(req, 'scheduled/css/scheduled.css')
-		tickets = []
-		tickets.append({
-			'summary': 'Test ticket #1',
-			'due': 'Friday 15th',
-			'recurring': 'Every 2 weeks',
-			'__idx__': 0,
-		})
-		tickets.append({
-			'summary': 'Test ticket #2',
-			'due': 'Friday 15th',
-			'recurring': None,
-			'__idx__': 1,
-		})
-		tickets.append({
-			'summary': 'Test ticket #3',
-			'due': 'Saturday 16th',
-			'recurring': 'Every day',
-			'__idx__': 2,
-		})
 		if re.match(r'^/scheduled/?$', req.path_info):
+			tickets = []
+			index = 0
+			for row in self.env.db_query("SELECT summary, description, recurring_days, scheduled_start FROM scheduled"):
+				tickets.append({
+					'summary': row[0],
+					'description': row[1],
+					'recurring_days': int(row[2]),
+					'scheduled_start': long(row[3]),
+					'__idx__': index,
+				})
+				index += 1
 			return 'scheduled.html', {'scheduled_tickets': tickets}, None
 		elif re.match(r'^/scheduled/create/?$', req.path_info):
 			message = None
