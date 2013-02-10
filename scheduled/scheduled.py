@@ -1,4 +1,5 @@
 import re
+import time
 
 from trac.core import *
 from trac.web.chrome import INavigationContributor, ITemplateProvider, add_stylesheet, Chrome
@@ -55,12 +56,46 @@ class Scheduled(Component):
 		if re.match(r'^/scheduled/?$', req.path_info):
 			return 'scheduled.html', {'scheduled_tickets': tickets}, None
 		elif re.match(r'^/scheduled/create/?$', req.path_info):
+			message = None
+			ticket = {}
+			
         		if req.method == 'POST':
-				raise HTTPNotFound('TODO')
-			else:
-				add_stylesheet(req, 'common/css/ticket.css')
-				Chrome(self.env).add_wiki_toolbars(req)
-				return 'scheduled_create.html', {}, None
+				try:
+					# Save req.args into ticket here, so an exception will not cause
+					# the fields to blank
+					ticket['summary'] = req.args['field_summary']
+					ticket['description'] = req.args['field_description']
+					ticket['recurring_days'] = req.args['field_repeatdays']
+					ticket['scheduled_start'] = req.args['field_nextdue']
+					
+					recurring = int(ticket['recurring_days'])
+					if recurring < 0:
+						raise Exception('Recurring days must not be negative')
+					nextdue = long(ticket['scheduled_start'])
+					if nextdue <= 0:
+						raise Exception('Next due days must be > 0')
+					
+					ticket['recurring_days'] = recurring
+					ticket['scheduled_start'] = (time.time() + nextdue * 3600 * 24) * 1000000
+					
+					with self.env.db_transaction as db:
+						cursor = db.cursor()
+						cursor.execute("""
+						    INSERT INTO scheduled (summary, description, recurring_days,
+						    scheduled_start) VALUES (%s, %s, %s, %s)""",
+						    (ticket['summary'], ticket['description'],
+						    ticket['recurring_days'], ticket['scheduled_start']))
+						ticket['id'] = db.get_last_id(cursor, 'scheduled')
+						self.log.warning("Inserted into schedule, id=%s", str(ticket['id']))
+					req.redirect(req.href('/scheduled'))
+				except RequestDone, e:
+					raise
+				except Exception, e:
+					message = str(e)
+			
+			add_stylesheet(req, 'common/css/ticket.css')
+			Chrome(self.env).add_wiki_toolbars(req)
+			return 'scheduled_create.html', {'message': message}, None
 		else:
 			raise HTTPNotFound('Scheduler plugin couldn\'t handle request to %s',
 			    req.path_info)
