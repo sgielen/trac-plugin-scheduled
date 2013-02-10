@@ -31,30 +31,51 @@ class Scheduled(Component):
 	# IRequestHandler: Show a page upon clicking the navigation "scheduled" button
 	def match_request(self, req):
 		return re.match(r'/scheduled(?:/.+)?$', req.path_info)
-
+	
+	def row_to_dict(self, row):
+		return {
+			'id': int(row[0]),
+			'summary': row[1],
+			'description': row[2],
+			'recurring_days': int(row[3]),
+			'scheduled_start': long(row[4]),
+		}
+	
 	def process_request(self, req):
 		add_stylesheet(req, 'scheduled/css/scheduled.css')
 		if re.match(r'/scheduled/?$', req.path_info):
 			tickets = []
 			index = 0
-			for row in self.env.db_query("SELECT summary, description, recurring_days, scheduled_start FROM scheduled"):
-				tickets.append({
-					'summary': row[0],
-					'description': row[1],
-					'recurring_days': int(row[2]),
-					'scheduled_start': long(row[3]),
-					'__idx__': index,
-				})
+			for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled"):
+				ticket = self.row_to_dict(row)
+				ticket['__idx__'] = index
+				tickets.append(ticket)
 				index += 1
 			return 'scheduled.html', {'scheduled_tickets': tickets}, None
-		elif re.match(r'/scheduled/create/?$', req.path_info):
+		m = re.match(r'/scheduled/(?:create/?|alter/(\d+)/?)$', req.path_info)
+		if m:
 			message = None
-			ticket = {}
+			ticket = None
+			tid = m.group(1)
+
+			if tid is None:
+				ticket = {}
+			else:
+				for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled WHERE id=%s", str(tid)):
+					ticket = self.row_to_dict(row)
+					# microsecond UNIX timestamp to number of days from now
+					ticket['scheduled_start'] = ((ticket['scheduled_start'] / 1000000) - time.time()) / (24*3600)
+				if ticket is None:
+					raise TracError("The given ticket ID was not found.")
+
+			assert ticket is not None, "ticket should be initialised by now"
 			
         		if req.method == 'POST':
 				try:
-					# Save req.args into ticket here, so an exception will not cause
+					# Save new fields into ticket here, so an exception will not cause
 					# the fields to blank
+					if 'ticket_id' in req.args:
+						ticket['id'] = req.args['ticket_id']
 					ticket['summary'] = req.args['field_summary']
 					ticket['description'] = req.args['field_description']
 					ticket['recurring_days'] = req.args['field_repeatdays']
@@ -63,7 +84,7 @@ class Scheduled(Component):
 					recurring = int(ticket['recurring_days'])
 					if recurring < 0:
 						raise Exception('Recurring days must not be negative')
-					nextdue = long(ticket['scheduled_start'])
+					nextdue = float(ticket['scheduled_start'])
 					if nextdue <= 0:
 						raise Exception('Next due days must be > 0')
 					
@@ -72,13 +93,21 @@ class Scheduled(Component):
 					
 					with self.env.db_transaction as db:
 						cursor = db.cursor()
-						cursor.execute("""
-						    INSERT INTO scheduled (summary, description, recurring_days,
-						    scheduled_start) VALUES (%s, %s, %s, %s)""",
-						    (ticket['summary'], ticket['description'],
-						    ticket['recurring_days'], ticket['scheduled_start']))
-						ticket['id'] = db.get_last_id(cursor, 'scheduled')
-						self.log.warning("Inserted into schedule, id=%s", str(ticket['id']))
+						if 'id' in ticket:
+							cursor.execute("""
+							    UPDATE scheduled SET summary=%s, description=%s, recurring_days=%s,
+							    scheduled_start=%s WHERE id=%s""",
+							    (ticket['summary'], ticket['description'],
+							    ticket['recurring_days'], ticket['scheduled_start'],
+							    ticket['id']))
+						else:
+							cursor.execute("""
+							    INSERT INTO scheduled (summary, description, recurring_days,
+							    scheduled_start) VALUES (%s, %s, %s, %s)""",
+							    (ticket['summary'], ticket['description'],
+							    ticket['recurring_days'], ticket['scheduled_start']))
+							ticket['id'] = db.get_last_id(cursor, 'scheduled')
+						self.log.warning("Saved into schedule, id=%s", str(ticket['id']))
 					req.redirect(req.href('/scheduled'))
 				except RequestDone, e:
 					raise
@@ -87,7 +116,7 @@ class Scheduled(Component):
 			
 			add_stylesheet(req, 'common/css/ticket.css')
 			Chrome(self.env).add_wiki_toolbars(req)
-			return 'scheduled_create.html', {'message': message}, None
+			return 'scheduled_create.html', {'message': message, 'ticket': ticket}, None
 		else:
 			raise HTTPNotFound('Scheduler plugin couldn\'t handle request to %s',
 			    req.path_info)

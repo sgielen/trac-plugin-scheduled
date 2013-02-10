@@ -7,7 +7,10 @@
       xmlns:xi="http://www.w3.org/2001/XInclude">
   <xi:include href="layout.html" />
   <head>
-    <title>Create new scheduled ticket</title>
+    <title py:choose="">
+      <py:when test="'id' in ticket">Alter scheduled ticket</py:when>
+      <py:otherwise>Create new scheduled ticket</py:otherwise>
+    </title>
     <script type="text/javascript">
         $("#field-summary").focus();
     </script>
@@ -15,11 +18,15 @@
 
   <body>
     <div id="content" class="scheduled_create">
-      <h1>Create new scheduled ticket</h1>
+      <py:choose>
+        <h1 py:when="'id' in ticket">Alter scheduled ticket "${ticket.summary}"</h1>
+        <h1 py:otherwise="">Create new scheduled ticket</h1>
+      </py:choose>
 
       <div py:if="message" class="system-message">$message</div>
 
       <form method="post" id="propertyform" action="">
+        <input py:if="id in ticket" type="hidden" name="ticket_id" value="${ticket.id}"/>
         <div id="modify">
           <fieldset id="properties">
             <legend>Properties</legend>
@@ -28,7 +35,7 @@
                 <tr>
                   <th><label for="field-summary">Summary</label></th>
                   <td class="fullrow" colspan="3">
-                    <input type="text" id="field-summary" name="field_summary" size="70"/>
+                    <input type="text" id="field-summary" name="field_summary" size="70" value="${ticket.summary}"/>
                   </td>
                 </tr>
 
@@ -42,16 +49,16 @@
                       </label>
                       <textarea id="field-description" name="field_description"
                                 class="wikitext trac-resizable" rows="10"
-                                cols="68"></textarea>
+                                cols="68">${ticket.description}</textarea>
                     </fieldset>
                   </td>
                 </tr>
 
                 <tr>
                   <th class="col1"><label for="field-nextdue">Next due (days):</label></th>
-                  <td class="col1"><input type="text" id="field-nextdue" name="field_nextdue"/></td>
+                  <td class="col1"><input type="text" id="field-nextdue" name="field_nextdue" value="${ticket.scheduled_start}"/></td>
                   <th class="col2"><label for="field-repeatdays">Repeat every (days, 0 for once):</label></th>
-                  <td class="col2"><input type="text" id="field-repeatdays" name="field_repeatdays"/></td>
+                  <td class="col2"><input type="text" id="field-repeatdays" name="field_repeatdays" value="${ticket.recurring_days}"/></td>
                 </tr>
               </tbody>
             </table>
