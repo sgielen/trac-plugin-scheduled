@@ -5,21 +5,74 @@ from trac.core import *
 from trac.web.chrome import INavigationContributor, ITemplateProvider, add_stylesheet, Chrome
 from trac.web.main import IRequestHandler
 from trac.web.api import *
+from trac.admin.api import IAdminCommandProvider
 from trac.env import IEnvironmentSetupParticipant
+from trac.util.text import exception_to_unicode, to_unicode
 from trac.util.translation import _
+from trac.ticket.api import ITicketManipulator
+from trac.ticket.model import Ticket
+from trac.ticket.notification import TicketNotifyEmail
 from genshi.builder import tag
 from pkg_resources import resource_filename
 
 class Scheduled(Component):
 	database_version = 1
 
-	implements(INavigationContributor, IRequestHandler, ITemplateProvider, IEnvironmentSetupParticipant)
+	implements(INavigationContributor, IRequestHandler, ITemplateProvider, IEnvironmentSetupParticipant, IAdminCommandProvider)
+
+	ticket_manipulators = ExtensionPoint(ITicketManipulator)
 
 	@property
 	def current_database_version(self):
 		for row in self.env.db_query("SELECT value FROM system WHERE name='scheduled_db_version'"):
 			return int(row[0])
 		return None
+
+	# IAdminCommandProvider: add the "scheduled update" command to trac-admin
+	def get_admin_commands(self):
+		yield ('scheduled update', '',
+			'Enter all due scheduled tickets immediately and, if recurrent, update their next due date',
+			None, self._do_enter_tickets)
+
+	def _do_enter_tickets(self):
+		current_time = time.time() * 1000000
+		entered = []
+		for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled"):
+			sticket = self.row_to_dict(row)
+			if sticket['scheduled_start'] < current_time:
+				entered.append(sticket)
+				self._do_enter_sticket(sticket)
+				with self.env.db_transaction as db:
+					cursor = db.cursor()
+					if sticket['recurring_days'] > 0:
+						sched = sticket['scheduled_start'] + sticket['recurring_days'] * 3600 * 24 * 1000000
+						cursor.execute("""UPDATE scheduled SET scheduled_start=%s WHERE id=%s""",
+						    (str(sched), str(sticket['id'])))
+					else:
+						cursor.execute("""DELETE FROM scheduled WHERE id=%s""", str(sticket['id']))
+		if len(entered) > 0:
+			print "%d tickets entered:" % len(entered)
+			for st in entered:
+				print "> %s" % st['summary']
+
+	def _do_enter_sticket(self, sticket):
+		ticket = Ticket(self.env)
+		ticket.values['status'] = 'new'
+		ticket.values['reporter'] = 'scheduled'
+		ticket.values['summary'] = sticket['summary']
+		ticket.values['description'] = sticket['description']
+		for manipulator in self.ticket_manipulators:
+			manipulator.validate_ticket([], ticket)
+
+		# This was largely copied from trac.ticket.web_ui
+		ticket.insert()
+		try:
+			tn = TicketNotifyEmail(self.env)
+			tn.notify(ticket, newticket=True)
+		except Exception, e:
+			error = "Failure sending notification on creation of ticket #%s: %s" % (ticket.id, exception_to_unicode(e))
+			self.log.error(error)
+			print error
 
 	# INavigationContributor: Add the "scheduled" button to the navigation bar
 	def get_active_navigation_item(self, req):
