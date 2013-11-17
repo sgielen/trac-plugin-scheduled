@@ -96,7 +96,22 @@ class Scheduled(Component):
 	
 	def process_request(self, req):
 		add_stylesheet(req, 'scheduled/css/scheduled.css')
-		if re.match(r'/scheduled/?$', req.path_info):
+		m = re.match(r'/scheduled(?:/delete/(\d+))?/?$', req.path_info)
+		if m:
+			tid = m.group(1)
+			deleted_message = None
+			if tid is not None:
+				deleted = False
+				for row in self.env.db_query("SELECT summary FROM scheduled WHERE id=%s", str(tid)):
+					deleted = True
+					with self.env.db_transaction as db:
+						cursor = db.cursor()
+						cursor.execute("DELETE FROM scheduled WHERE id=%s",
+							str(tid))
+					deleted_message = "Scheduled ticket succesfully deleted: " + row[0]
+				if not deleted:
+					deleted_message = "No ticket found with that ID, none deleted"
+
 			tickets = []
 			index = 0
 			for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled"):
@@ -104,7 +119,9 @@ class Scheduled(Component):
 				ticket['__idx__'] = index
 				tickets.append(ticket)
 				index += 1
-			return 'scheduled.html', {'scheduled_tickets': tickets}, None
+			return 'scheduled.html', \
+			   {'scheduled_tickets': tickets, \
+			   'deleted_message': deleted_message}, None
 		m = re.match(r'/scheduled/(?:create/?|alter/(\d+)/?)$', req.path_info)
 		if m:
 			message = None

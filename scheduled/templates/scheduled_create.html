@@ -68,6 +68,7 @@
         <div class="buttons">
 	    <input type="submit" name="submit" value="Create scheduled ticket" py:if="'id' not in ticket" />
 	    <input type="submit" name="submit" value="Alter scheduled ticket" py:if="'id' in ticket" />
+            <a py:if="'id' in ticket" href="${href('/scheduled/delete')}/${ticket.id}">Delete scheduled ticket</a>
         </div>
       </form>
 

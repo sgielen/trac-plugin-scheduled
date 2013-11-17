@@ -16,6 +16,8 @@
 
       <div py:if="message" class="system-message">$message</div>
 
+      <div py:if="deleted_message" class="deleted-message">$deleted_message</div>
+
       <div class="buttons">
         <form action="${href('/scheduled/create')}" method="get">
           <div>
