@@ -17,7 +17,7 @@
       <div py:if="message" class="system-message">$message</div>
 
       <div class="buttons">
-        <form action="scheduled/create" method="get">
+        <form action="${href('/scheduled/create')}" method="get">
           <div>
             <input type="submit" value="${_('Add scheduled or recurring ticket')}" />
           </div>
@@ -35,7 +35,7 @@
           <tbody>
             <py:for each="row in scheduled_tickets">
               <tr class="${row.__idx__ % 2 and 'odd' or 'even'}">
-                <td class="summary"><a href="scheduled/alter/${row.id}">${row.summary}</a></td>
+                <td class="summary"><a href="${href('scheduled/alter')}/${row.id}">${row.summary}</a></td>
                 <td class="due">${format_date(from_utimestamp(long(row.scheduled_start)))}</td>
                 <td class="recurring">${row.recurring_days and ("Every %d days" % row.recurring_days) or "No"}</td>
               </tr>
