@@ -31,13 +31,15 @@
       <div py:if="len(scheduled_tickets) > 0" id="scheduled_tickets">
         <table class="listing tickets">
           <thead>
-            <tr><th>Summary</th><th>Due</th><th>Recurring</th></tr>
+            <tr><th>Summary</th><th>Enabled</th><th>Due</th><th>Recurring</th></tr>
           </thead>
 
           <tbody>
             <py:for each="row in scheduled_tickets">
               <tr class="${row.__idx__ % 2 and 'odd' or 'even'}">
                 <td class="summary"><a href="${href('scheduled/alter')}/${row.id}">${row.summary}</a></td>
+		<td class="enabled" py:if="row.enabled==1">Yes</td>
+		<td class="enabled" py:if="row.enabled==0">No</td>
                 <td class="due">${format_date(from_utimestamp(long(row.scheduled_start)))}</td>
                 <td class="recurring">${row.recurring_days and ("Every %d days" % row.recurring_days) or "No"}</td>
               </tr>

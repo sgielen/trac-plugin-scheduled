@@ -16,7 +16,7 @@ from genshi.builder import tag
 from pkg_resources import resource_filename
 
 class Scheduled(Component):
-	database_version = 1
+	database_version = 2
 
 	implements(INavigationContributor, IRequestHandler, ITemplateProvider, IEnvironmentSetupParticipant, IAdminCommandProvider)
 
@@ -37,7 +37,7 @@ class Scheduled(Component):
 	def _do_enter_tickets(self):
 		current_time = time.time() * 1000000
 		entered = []
-		for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled"):
+		for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start, enabled FROM scheduled WHERE enabled=1"):
 			sticket = self.row_to_dict(row)
 			if sticket['scheduled_start'] < current_time:
 				entered.append(sticket)
@@ -49,7 +49,7 @@ class Scheduled(Component):
 						cursor.execute("""UPDATE scheduled SET scheduled_start=%s WHERE id=%s""",
 						    (str(sched), str(sticket['id'])))
 					else:
-						cursor.execute("""DELETE FROM scheduled WHERE id=%s""", str(sticket['id']))
+						cursor.execute("""UPDATE scheduled SET enabled=0 WHERE id=%s""", str(sticket['id']))
 		if len(entered) > 0:
 			print "%d tickets entered:" % len(entered)
 			for st in entered:
@@ -92,6 +92,7 @@ class Scheduled(Component):
 			'description': row[2],
 			'recurring_days': int(row[3]),
 			'scheduled_start': long(row[4]),
+			'enabled': int(row[5]),
 		}
 	
 	def process_request(self, req):
@@ -114,7 +115,7 @@ class Scheduled(Component):
 
 			tickets = []
 			index = 0
-			for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled"):
+			for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start, enabled FROM scheduled ORDER BY enabled DESC, scheduled_start ASC"):
 				ticket = self.row_to_dict(row)
 				ticket['__idx__'] = index
 				tickets.append(ticket)
@@ -131,7 +132,7 @@ class Scheduled(Component):
 			if tid is None:
 				ticket = {}
 			else:
-				for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start FROM scheduled WHERE id=%s", str(tid)):
+				for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start, enabled FROM scheduled WHERE id=%s", str(tid)):
 					ticket = self.row_to_dict(row)
 					# microsecond UNIX timestamp to number of days from now
 					ticket['scheduled_start'] = ((ticket['scheduled_start'] / 1000000) - time.time()) / (24*3600)
@@ -150,6 +151,11 @@ class Scheduled(Component):
 					ticket['description'] = req.args['field_description']
 					ticket['recurring_days'] = req.args['field_repeatdays']
 					ticket['scheduled_start'] = req.args['field_nextdue']
+					ticket['enabled'] = req.args['field_enabled'];
+					if ticket['enabled'] == "1":
+						ticket['enabled'] = 1
+					else:
+						ticket['enabled'] = 0
 					
 					recurring = int(ticket['recurring_days'])
 					if recurring < 0:
@@ -160,22 +166,22 @@ class Scheduled(Component):
 					
 					ticket['recurring_days'] = recurring
 					ticket['scheduled_start'] = (time.time() + nextdue * 3600 * 24) * 1000000
-					
+	
 					with self.env.db_transaction as db:
 						cursor = db.cursor()
 						if 'id' in ticket:
 							cursor.execute("""
 							    UPDATE scheduled SET summary=%s, description=%s, recurring_days=%s,
-							    scheduled_start=%s WHERE id=%s""",
+							    scheduled_start=%s, enabled=%s WHERE id=%s""",
 							    (ticket['summary'], ticket['description'],
-							    ticket['recurring_days'], ticket['scheduled_start'],
+							    ticket['recurring_days'], ticket['scheduled_start'], ticket['enabled'],
 							    ticket['id']))
 						else:
 							cursor.execute("""
 							    INSERT INTO scheduled (summary, description, recurring_days,
-							    scheduled_start) VALUES (%s, %s, %s, %s)""",
+							    scheduled_start, enabled) VALUES (%s, %s, %s, %s, %s)""",
 							    (ticket['summary'], ticket['description'],
-							    ticket['recurring_days'], ticket['scheduled_start']))
+							    ticket['recurring_days'], ticket['scheduled_start'], ticket['enabled']))
 							ticket['id'] = db.get_last_id(cursor, 'scheduled')
 						self.log.warning("Saved into schedule, id=%s", str(ticket['id']))
 					req.redirect(req.href('/scheduled'))
@@ -208,7 +214,7 @@ class Scheduled(Component):
 
 	def upgrade_environment(self, db):
 		ver=self.current_database_version
-		last_supported_database_version=0
+		last_supported_database_version=1
 		
 		if ver > self.database_version:
 			raise TracError("""
@@ -218,7 +224,7 @@ class Scheduled(Component):
 				""" % (ver, self.database_version))
 
 		# Sanity checking
-		if ver != 0 & ver < last_supported_database_version:
+		if ver != 0 and ver < last_supported_database_version:
 			# TODO: have an option for dropping the complete database
 			raise TracError("""
 				Scheduled tickets database version is unupgradable (last supported upgrade
@@ -240,13 +246,14 @@ class Scheduled(Component):
 				summary text,
 				description text,
 				recurring_days integer,
-				scheduled_start integer
+				scheduled_start integer,
+				enabled integer
 			)""")
 
 			# Restore our old database
 			if ver is not None:
-				db("""INSERT INTO scheduled(id, summary, description, recurring_days, scheduled_start)
-					SELECT id,summary,description,recurring_days,scheduled_start FROM scheduled_old""")
+				db("""INSERT INTO scheduled(id, summary, description, recurring_days, scheduled_start, enabled)
+					SELECT id,summary,description,recurring_days,scheduled_start,1 FROM scheduled_old""")
 			
 			# Update our version number
 			if ver is not None:

@@ -59,6 +59,16 @@
                   <td class="col1"><input type="text" id="field-nextdue" name="field_nextdue" value="${ticket.scheduled_start}"/></td>
                   <th class="col2"><label for="field-repeatdays">Repeat every (days, 0 for once):</label></th>
                   <td class="col2"><input type="text" id="field-repeatdays" name="field_repeatdays" value="${ticket.recurring_days}"/></td>
+		</tr>
+
+		<tr>
+                  <th class="col1"><label for="field-enabled">Enabled:</label></th>
+                  <td class="col1"><select id="field-enabled" name="field_enabled">
+                      <option value="1" selected="selected" py:if="ticket.enabled == 1">Yes</option>
+                      <option value="1" py:if="ticket.enabled != 1">Yes</option>
+                      <option value="0" selected="selected" py:if="ticket.enabled == 0">No</option>
+                      <option value="0" py:if="ticket.enabled != 0">No</option>
+                  </select></td>
                 </tr>
               </tbody>
             </table>
