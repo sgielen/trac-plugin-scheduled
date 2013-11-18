@@ -10,13 +10,13 @@ from trac.env import IEnvironmentSetupParticipant
 from trac.util.text import exception_to_unicode, to_unicode
 from trac.util.translation import _
 from trac.ticket.api import ITicketManipulator
-from trac.ticket.model import Ticket
+from trac.ticket.model import Ticket, Priority
 from trac.ticket.notification import TicketNotifyEmail
 from genshi.builder import tag
 from pkg_resources import resource_filename
 
 class Scheduled(Component):
-	database_version = 2
+	database_version = 3
 
 	implements(INavigationContributor, IRequestHandler, ITemplateProvider, IEnvironmentSetupParticipant, IAdminCommandProvider)
 
@@ -37,7 +37,7 @@ class Scheduled(Component):
 	def _do_enter_tickets(self):
 		current_time = time.time() * 1000000
 		entered = []
-		for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start, enabled FROM scheduled WHERE enabled=1"):
+		for row in self.env.db_query("SELECT id, summary, description, priority, recurring_days, scheduled_start, enabled FROM scheduled WHERE enabled=1"):
 			sticket = self.row_to_dict(row)
 			if sticket['scheduled_start'] < current_time:
 				entered.append(sticket)
@@ -61,6 +61,12 @@ class Scheduled(Component):
 		ticket.values['reporter'] = 'scheduled'
 		ticket.values['summary'] = sticket['summary']
 		ticket.values['description'] = sticket['description']
+
+		priorities = Priority.select(self.env)
+		for priority in priorities:
+			if int(priority.value) == sticket['priority']:
+				ticket.values['priority'] = priority.name
+
 		for manipulator in self.ticket_manipulators:
 			manipulator.validate_ticket([], ticket)
 
@@ -90,9 +96,10 @@ class Scheduled(Component):
 			'id': int(row[0]),
 			'summary': row[1],
 			'description': row[2],
-			'recurring_days': int(row[3]),
-			'scheduled_start': long(row[4]),
-			'enabled': int(row[5]),
+			'priority': int(row[3]),
+			'recurring_days': int(row[4]),
+			'scheduled_start': long(row[5]),
+			'enabled': int(row[6]),
 		}
 	
 	def process_request(self, req):
@@ -115,7 +122,7 @@ class Scheduled(Component):
 
 			tickets = []
 			index = 0
-			for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start, enabled FROM scheduled ORDER BY enabled DESC, scheduled_start ASC"):
+			for row in self.env.db_query("SELECT id, summary, description, priority, recurring_days, scheduled_start, enabled FROM scheduled ORDER BY enabled DESC, scheduled_start ASC"):
 				ticket = self.row_to_dict(row)
 				ticket['__idx__'] = index
 				tickets.append(ticket)
@@ -129,10 +136,12 @@ class Scheduled(Component):
 			ticket = None
 			tid = m.group(1)
 
+			priorities = Priority.select(self.env)
+
 			if tid is None:
 				ticket = {}
 			else:
-				for row in self.env.db_query("SELECT id, summary, description, recurring_days, scheduled_start, enabled FROM scheduled WHERE id=%s", str(tid)):
+				for row in self.env.db_query("SELECT id, summary, description, priority, recurring_days, scheduled_start, enabled FROM scheduled WHERE id=%s", str(tid)):
 					ticket = self.row_to_dict(row)
 					# microsecond UNIX timestamp to number of days from now
 					ticket['scheduled_start'] = ((ticket['scheduled_start'] / 1000000) - time.time()) / (24*3600)
@@ -152,6 +161,8 @@ class Scheduled(Component):
 					ticket['recurring_days'] = req.args['field_repeatdays']
 					ticket['scheduled_start'] = req.args['field_nextdue']
 					ticket['enabled'] = req.args['field_enabled'];
+					ticket['priority'] = req.args['field_priority'];
+					
 					if ticket['enabled'] == "1":
 						ticket['enabled'] = 1
 					else:
@@ -172,16 +183,17 @@ class Scheduled(Component):
 						if 'id' in ticket:
 							cursor.execute("""
 							    UPDATE scheduled SET summary=%s, description=%s, recurring_days=%s,
-							    scheduled_start=%s, enabled=%s WHERE id=%s""",
+							    scheduled_start=%s, enabled=%s, priority=%s WHERE id=%s""",
 							    (ticket['summary'], ticket['description'],
 							    ticket['recurring_days'], ticket['scheduled_start'], ticket['enabled'],
-							    ticket['id']))
+							    ticket['priority'], ticket['id']))
 						else:
 							cursor.execute("""
 							    INSERT INTO scheduled (summary, description, recurring_days,
-							    scheduled_start, enabled) VALUES (%s, %s, %s, %s, %s)""",
+							    scheduled_start, enabled, priority) VALUES (%s, %s, %s, %s, %s, %s)""",
 							    (ticket['summary'], ticket['description'],
-							    ticket['recurring_days'], ticket['scheduled_start'], ticket['enabled']))
+							    ticket['recurring_days'], ticket['scheduled_start'],
+							    ticket['enabled'], ticket['priority']))
 							ticket['id'] = db.get_last_id(cursor, 'scheduled')
 						self.log.warning("Saved into schedule, id=%s", str(ticket['id']))
 					req.redirect(req.href('/scheduled'))
@@ -192,7 +204,7 @@ class Scheduled(Component):
 			
 			add_stylesheet(req, 'common/css/ticket.css')
 			Chrome(self.env).add_wiki_toolbars(req)
-			return 'scheduled_create.html', {'message': message, 'ticket': ticket}, None
+			return 'scheduled_create.html', {'message': message, 'ticket': ticket, 'priorities': priorities}, None
 		else:
 			raise HTTPNotFound('Scheduler plugin couldn\'t handle request to %s',
 			    req.path_info)
@@ -247,13 +259,14 @@ class Scheduled(Component):
 				description text,
 				recurring_days integer,
 				scheduled_start integer,
-				enabled integer
+				enabled integer,
+				priority integer
 			)""")
 
 			# Restore our old database
 			if ver is not None:
-				db("""INSERT INTO scheduled(id, summary, description, recurring_days, scheduled_start, enabled)
-					SELECT id,summary,description,recurring_days,scheduled_start,1 FROM scheduled_old""")
+				db("""INSERT INTO scheduled(id, summary, description, recurring_days, scheduled_start, enabled, priority)
+					SELECT id,summary,description,recurring_days,scheduled_start,1,1 FROM scheduled_old""")
 			
 			# Update our version number
 			if ver is not None:

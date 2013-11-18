@@ -62,8 +62,16 @@
 		</tr>
 
 		<tr>
-                  <th class="col1"><label for="field-enabled">Enabled:</label></th>
-                  <td class="col1"><select id="field-enabled" name="field_enabled">
+                  <th class="col1"><label for="field-priority">Priority:</label></th>
+                  <td class="col1"><select id="field-priority" name="field_priority">
+                      <py:for each="priority in priorities">
+                          <option value="${priority.value}" selected="selected" py:if="ticket.priority == int(priority.value)">${priority.name}</option>
+                          <option value="${priority.value}" py:if="ticket.priority != int(priority.value)">${priority.name}</option>
+                      </py:for>
+                  </select></td>
+
+                  <th class="col2"><label for="field-enabled">Enabled:</label></th>
+                  <td class="col2"><select id="field-enabled" name="field_enabled">
                       <option value="1" selected="selected" py:if="ticket.enabled == 1">Yes</option>
                       <option value="1" py:if="ticket.enabled != 1">Yes</option>
                       <option value="0" selected="selected" py:if="ticket.enabled == 0">No</option>
